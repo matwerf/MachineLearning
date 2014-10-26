@@ -1,0 +1,135 @@
+Title: Exercise prediction
+========================================================
+### Synopsis:
+In this project, the goal was to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. They performed barbell lifts correctly and incorrectly in 5 different ways described at http://groupware.les.inf.puc-rio.br/har. The training data set was divided into two groups 60% for training and 40% for cross validation, then the test data was run and evaluated on the coursera site. It was found that the Random Forest Model provided the lowest error of the models tested on the validation set, and resulted in the correct prediction of the 20 samples with less than a 0.004% out of sample error. In initial trials 500 trees were used, but this had a long running time - and did not seem to be needed and could increase the overfitting of the data. The number of trees could be reduced to 16 with out loosing any predictive value on the training data and only a minimal difference with the validation set - and this reduced the running time to ~55 sec versus the ~1440 sec for 500 trees.   
+
+This report has 5 parts: Model Building, Cross Validation, Sample Error, Explaination and Prediction. 
+
+### Model Building:
+The "classe" variable in the training set described the manner of exercise preformed and was one of 5 choices.
+The following methods were tested: the "rpart" method in the caret package with and without preprocessing. Both "lda" and "nb" methods were tried. After this, the "rf" method was tested in the train function in the caret package. The defalts for this program possibly "overfit" the data and were not needed 500 trees and 25 cv - this was reduced until a difference was seen between the testing validation at a number of trees at 16. 
+
+```{r echo=FALSE}
+## Data Processing  If preprocessing is time-consuming you may consider using the cache = TRUE option for certain code chunks.
+setwd("~/dataprojects/MachineLearning")
+library(rpart)
+library(ggplot2)
+library(lattice)
+library(caret)
+library(MASS)
+library(randomForest)
+library(AppliedPredictiveModeling)
+set.seed(2345)
+```
+The data was partitioned into two groups a testing group and a training group with a 60%/40% split.
+```{r echo=FALSE}
+##The following can be uncommented to start from the online source.
+#if(!file.exists("./data")){dir.create("./data")}
+#fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+#download.file(fileUrl, destfile="./data/trainingfile.csv", method = "curl")
+#fileUrltest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#download.file(fileUrltest, destfile="./data/testfile.csv", method = "curl")
+#description of data at http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf
+```
+
+```{r cache=TRUE, echo=FALSE}
+#Divide data into test and training sets
+exerdata <- read.csv("./data/trainingfile.csv")
+inTrain <-createDataPartition(y=exerdata$classe, p=0.6, list = FALSE)
+training <- exerdata[inTrain,]
+testing <- exerdata[-inTrain,]
+datatest <- read.csv("./data/testfile.csv")
+```
+
+The parameters in the data set were evaluated with the  following code, as well as a manual inspection. Those parameters that were not majority NA or empty were used for the training.
+
+```{r cache=TRUE, echo=FALSE}
+##parameter evaluations
+
+#as.data.frame( t(sapply(training, function(cl) list(means=mean(cl,na.rm=TRUE), sds=sd(cl,na.rm=TRUE), numNA=sum(is.na(cl)))) ))
+
+#magnet_belt_x  magnet_belt_y	magnet_belt_z	roll_arm	pitch_arm	yaw_arm	total_accel_arm roll_dumbbell  pitch_dumbbell	yaw_dumbbell accel_arm_x  accel_arm_y	accel_arm_z	magnet_arm_x	magnet_arm_y	magnet_arm_z gyros_arm_x  gyros_arm_y	gyros_arm_z gyros_belt_x  gyros_belt_y	gyros_belt_z	accel_belt_x	accel_belt_y	accel_belt_z	magnet_belt_x	magnet_belt_y	magnet_belt_z	roll_arm	pitch_arm	yaw_arm	total_accel_arm X  user_name	raw_timestamp_part_1	raw_timestamp_part_2	cvtd_timestamp	new_window	num_window	roll_belt	pitch_belt	yaw_belt	total_accel_belt
+```
+
+```{r cache=TRUE, echo=FALSE}
+##Model testing
+##tree - rpart
+fit1 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y	+ accel_arm_z	+ magnet_arm_x	+ magnet_arm_y	+ magnet_arm_z + gyros_arm_x  + gyros_arm_y	+ gyros_arm_z + gyros_belt_x  +gyros_belt_y	+gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rpart") 
+
+##tree - rpart centered and scaled
+fit2 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x	+ magnet_arm_y	+ magnet_arm_z + gyros_arm_x  + gyros_arm_y	+ gyros_arm_z + gyros_belt_x  +gyros_belt_y	+gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rpart", preProcess = c("center","scale")) 
+```
+
+```{r cache=TRUE, echo=FALSE}
+###lda
+fit8 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y	+ magnet_arm_z + gyros_arm_x  + gyros_arm_y	+ gyros_arm_z + gyros_belt_x  +gyros_belt_y	+gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "lda", preProcess = c("center","scale")) 
+
+###nb
+#was tested but crashes knit
+#fit9 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y  + magnet_arm_z + gyros_arm_x  + gyros_arm_y	+ gyros_arm_z + gyros_belt_x  +gyros_belt_y	+gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "nb", preProcess = c("center","scale")) 
+```
+
+```{r cache=TRUE, echo=FALSE}
+#rf
+fit10 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y  + magnet_arm_z + gyros_arm_x  + gyros_arm_y  + gyros_arm_z + gyros_belt_x  +gyros_belt_y	+gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rf", preProcess = c("center","scale"), ntree=32) 
+
+fit11 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y  + magnet_arm_z + gyros_arm_x  + gyros_arm_y  + gyros_arm_z + gyros_belt_x  +gyros_belt_y  +gyros_belt_z	+accel_belt_x	+accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rf", preProcess = c("center","scale"), ntree=16) 
+```
+
+```{r cache=TRUE, echo=FALSE}
+#system.time({fit11 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y  + magnet_arm_z + gyros_arm_x  + gyros_arm_y  + gyros_arm_z + gyros_belt_x  +gyros_belt_y    +gyros_belt_z  +accel_belt_x  +accel_belt_y	+ accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rf", preProcess = c("center","scale"), ntree=16) })
+
+#system.time({fit11 <- train(classe ~ roll_dumbbell  + pitch_dumbbell  + yaw_dumbbell + accel_arm_x  + accel_arm_y  + accel_arm_z  + magnet_arm_x  + magnet_arm_y  + magnet_arm_z + gyros_arm_x  + gyros_arm_y  + gyros_arm_z + gyros_belt_x  +gyros_belt_y    +gyros_belt_z  +accel_belt_x  +accel_belt_y  + accel_belt_z	+ magnet_belt_x	+ magnet_belt_y	+magnet_belt_z	+ roll_arm	+pitch_arm	+ yaw_arm	+ total_accel_arm	+ new_window	+num_window	+ roll_belt	+ pitch_belt	+ yaw_belt	+ total_accel_belt, data=training, method = "rf", preProcess = c("center","scale")) })
+```
+
+
+###Cross validation
+The different models were tested against the reserved testing data.
+```{r cashe=TRUE}
+#rpart
+prefit1 <- predict(fit1,testing)
+fit1Acc <- sum(table(prefit1, testing$classe)/nrow(testing)*diag(5))
+table(prefit1, testing$classe)
+
+#rpart with center and scaling
+prefit2 <- predict(fit2,testing)
+fit2Acc <- sum(table(prefit2, testing$classe)/nrow(testing)*diag(5))
+table(prefit2, testing$classe)
+
+#lda
+prefit8 <- predict(fit8,testing)
+fit8Acc <- sum(table(prefit8, testing$classe)/nrow(testing)*diag(5))
+table(prefit8, testing$classe)
+
+#rf 32 trees
+prefit10 <- predict(fit10,testing)
+fit10Acc<- sum(table(prefit10, testing$classe)/nrow(testing)*diag(5))
+table(prefit10, testing$classe)
+
+#rf 16 trees
+prefit11 <- predict(fit10,testing)
+fit11Acc <- sum(table(prefit11, testing$classe)/nrow(testing)*diag(5))
+table(prefit11, testing$classe)
+```
+###Sample Error
+The out of sample error of these predictions ended up being `r 1-fit1Acc` for the rpart method, `r 1-fit2Acc` for the rpart method with preProcessing, `r 1-fit8Acc` for the lda method, `r 1-fit10Acc` for the random forest method with 32 trees and `r 1-fit11Acc` for the rf method with 16 trees. 
+
+###Prediction
+The model with the lowest error on the validation set was then used to provide the best model for the prediction, Random forest with 25 cv and 16 ntree.
+
+```{r echo = FALSE}
+##section can be commented in to predict the date
+##Applying the top prediction to datatest
+#fit11test <- predict(fit11,datatest)
+#fit11test
+#pml_write_files = function(x){
+#  n = length(x)
+#  for(i in 1:n){
+#    filename = paste0("problem_id_",i,".txt")
+#    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+#  }
+#}
+#pml_write_files(fit11test)
+
+#[1] B A B A A E D B A A B C B A E E A B B B
+```
